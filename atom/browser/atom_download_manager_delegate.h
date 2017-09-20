@@ -42,6 +42,9 @@ class AtomDownloadManagerDelegate : public content::DownloadManagerDelegate {
   // Get the save path set on the associated api::DownloadItem object
   void GetItemSavePath(content::DownloadItem* item, base::FilePath* path);
 
+  bool GetItemExtension(content::DownloadItem* item,
+                         base::FilePath::StringType* extension);
+
   content::DownloadManager* download_manager_;
   base::WeakPtrFactory<AtomDownloadManagerDelegate> weak_ptr_factory_;
 

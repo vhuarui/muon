@@ -5,6 +5,7 @@
 #include "atom/browser/atom_download_manager_delegate.h"
 
 #include <string>
+#include <vector>
 
 #include "atom/browser/api/atom_api_download_item.h"
 #include "atom/browser/native_window.h"
@@ -18,6 +19,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
 #include "net/base/filename_util.h"
+#include "net/base/mime_util.h"
 
 namespace atom {
 
@@ -51,6 +53,20 @@ void AtomDownloadManagerDelegate::GetItemSavePath(content::DownloadItem* item,
                                                                     item);
   if (download && !download->GetSavePath().empty())
     *path = download->GetSavePath();
+}
+
+bool AtomDownloadManagerDelegate::GetItemExtension(
+    content::DownloadItem* item,
+    base::FilePath::StringType* extension) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Locker locker(isolate);
+  v8::HandleScope handle_scope(isolate);
+  api::DownloadItem* download = api::DownloadItem::FromWrappedClass(isolate,
+                                                                    item);
+  if (download && !download->GetMimeType().empty())
+      return net::GetPreferredExtensionForMimeType(
+            download->GetMimeType(), extension);
+  return false;
 }
 
 void AtomDownloadManagerDelegate::OnDownloadPathGenerated(
@@ -91,15 +107,26 @@ void AtomDownloadManagerDelegate::OnDownloadPathGenerated(
   // Show save dialog if save path was not set already on item
   file_dialog::DialogSettings settings;
   settings.parent_window = window;
-  settings.title = item->GetURL().spec();
   settings.default_path = target_path;
-  if (path.empty() && file_dialog::ShowSaveDialog(settings, &path)) {
+  settings.type = ui::SelectFileDialog::SELECT_SAVEAS_FILE;
+  std::vector<base::FilePath::StringType> extensions;
+  base::FilePath::StringType extension;
+  std::vector<base::FilePath> paths;
+  if (GetItemExtension(item, &extension)) {
+    extensions.push_back(extension);
+    settings.extensions.push_back(extensions);
+  }
+  if (path.empty() &&
+      file_dialog::FileDialog::Show(settings, &paths)) {
     // Remember the last selected download directory.
     Profile* profile = static_cast<Profile*>(
         download_manager_->GetBrowserContext());
     profile->GetPrefs()->SetFilePath(prefs::kDownloadDefaultDirectory,
                                           path.DirName());
   }
+
+  if (!paths.empty())
+    path = paths[0];
 
   if (path.empty())
     item->Remove();

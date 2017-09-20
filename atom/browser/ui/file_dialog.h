@@ -9,8 +9,12 @@
 #include <utility>
 #include <vector>
 
+#include "atom/browser/native_window.h"
+#include "base/callback.h"
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/selected_file_info.h"
 
 namespace atom {
 class NativeWindow;
@@ -18,45 +22,51 @@ class NativeWindow;
 
 namespace file_dialog {
 
-// <description, extensions>
-typedef std::pair<std::string, std::vector<std::string> > Filter;
-typedef std::vector<Filter> Filters;
-
-enum FileDialogProperty {
-  FILE_DIALOG_OPEN_FILE         = 1 << 0,
-  FILE_DIALOG_OPEN_DIRECTORY    = 1 << 1,
-  FILE_DIALOG_MULTI_SELECTIONS  = 1 << 2,
-  FILE_DIALOG_CREATE_DIRECTORY  = 1 << 3,
-  FILE_DIALOG_SHOW_HIDDEN_FILES = 1 << 4,
-  FILE_DIALOG_PROMPT_TO_CREATE  = 1 << 5,
-};
-
 typedef base::Callback<void(
-    bool result, const std::vector<base::FilePath>& paths)> OpenDialogCallback;
-
-typedef base::Callback<void(
-    bool result, const base::FilePath& path)> SaveDialogCallback;
+    bool result, const std::vector<base::FilePath>& paths)> DialogCallback;
 
 struct DialogSettings {
   atom::NativeWindow* parent_window = nullptr;
   std::string title;
-  std::string button_label;
   base::FilePath default_path;
-  Filters filters;
-  int properties = 0;
+  std::vector<std::vector<base::FilePath::StringType>> extensions;
+  std::vector<base::string16> extension_description_overrides;
+  ui::SelectFileDialog::Type type;
+  bool include_all_files = true;
 };
 
-bool ShowOpenDialog(const DialogSettings& settings,
-                    std::vector<base::FilePath>* paths);
+class FileDialog : public ui::SelectFileDialog::Listener {
+ public:
+  static void Show(const DialogSettings& settings,
+                   const DialogCallback& callback);
 
-void ShowOpenDialog(const DialogSettings& settings,
-                    const OpenDialogCallback& callback);
+  static bool Show(const DialogSettings& settings,
+                   std::vector<base::FilePath>* paths);
 
-bool ShowSaveDialog(const DialogSettings& settings,
-                    base::FilePath* path);
+ private:
+  FileDialog(const DialogSettings& settings,
+                 const DialogCallback& callback);
+  ~FileDialog() override;
 
-void ShowSaveDialog(const DialogSettings& settings,
-                    const SaveDialogCallback& callback);
+  // SelectFileDialog::Listener implementation.
+  void FileSelected(const base::FilePath& path,
+                    int index,
+                    void* params) override;
+  void FileSelectedWithExtraInfo(const ui::SelectedFileInfo& file,
+                                 int index,
+                                 void* params) override;
+  void MultiFilesSelected(const std::vector<base::FilePath>& files,
+                          void* params) override;
+  void MultiFilesSelectedWithExtraInfo(
+      const std::vector<ui::SelectedFileInfo>& files,
+      void* params) override;
+  void FileSelectionCanceled(void* params) override;
+
+  // Dialog box used for opening and saving files.
+  scoped_refptr<ui::SelectFileDialog> select_file_dialog_;
+
+  DialogCallback file_selected_callback_;
+};
 
 }  // namespace file_dialog
 

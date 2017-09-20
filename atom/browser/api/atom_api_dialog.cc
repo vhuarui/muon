@@ -20,17 +20,26 @@
 namespace mate {
 
 template<>
-struct Converter<file_dialog::Filter> {
+struct Converter<ui::SelectFileDialog::Type> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
-                     file_dialog::Filter* out) {
-    mate::Dictionary dict;
-    if (!ConvertFromV8(isolate, val, &dict))
+                     ui::SelectFileDialog::Type* out) {
+    std::string type;
+    if (!ConvertFromV8(isolate, val, &type))
       return false;
-    if (!dict.Get("name", &(out->first)))
-      return false;
-    if (!dict.Get("extensions", &(out->second)))
-      return false;
+    if (type == "select-folder") {
+        *out = ui::SelectFileDialog::SELECT_FOLDER;
+    } else if (type == "select-upload-folder") {
+        *out = ui::SelectFileDialog::SELECT_UPLOAD_FOLDER;
+    } else if (type == "select-saveas-file") {
+        *out = ui::SelectFileDialog::SELECT_SAVEAS_FILE;
+    } else if (type == "select-open-file") {
+        *out = ui::SelectFileDialog::SELECT_OPEN_FILE;
+    } else if (type == "select-open-multi-file") {
+        *out = ui::SelectFileDialog::SELECT_OPEN_MULTI_FILE;
+    } else {
+        *out = ui::SelectFileDialog::SELECT_NONE;
+    }
     return true;
   }
 };
@@ -45,10 +54,12 @@ struct Converter<file_dialog::DialogSettings> {
       return false;
     dict.Get("window", &(out->parent_window));
     dict.Get("title", &(out->title));
-    dict.Get("buttonLabel", &(out->button_label));
     dict.Get("defaultPath", &(out->default_path));
-    dict.Get("filters", &(out->filters));
-    dict.Get("properties", &(out->properties));
+    dict.Get("type", &(out->type));
+    dict.Get("extensions", &(out->extensions));
+    dict.Get("extensionDescriptionOverrides",
+             &(out->extension_description_overrides));
+    dict.Get("includeAllFiles", &(out->include_all_files));
     return true;
   }
 };
@@ -84,33 +95,18 @@ void ShowMessageBox(int type,
   }
 }
 
-void ShowOpenDialog(const file_dialog::DialogSettings& settings,
-                    mate::Arguments* args) {
+void ShowDialog(const file_dialog::DialogSettings& settings,
+                mate::Arguments* args) {
   v8::Local<v8::Value> peek = args->PeekNext();
-  file_dialog::OpenDialogCallback callback;
-  if (mate::Converter<file_dialog::OpenDialogCallback>::FromV8(args->isolate(),
-                                                               peek,
-                                                               &callback)) {
-    file_dialog::ShowOpenDialog(settings, callback);
+  file_dialog::DialogCallback callback;
+  if (mate::Converter<file_dialog::DialogCallback>::FromV8(args->isolate(),
+                                                           peek,
+                                                           &callback)) {
+    file_dialog::FileDialog::Show(settings, callback);
   } else {
     std::vector<base::FilePath> paths;
-    if (file_dialog::ShowOpenDialog(settings, &paths))
+    if (file_dialog::FileDialog::Show(settings, &paths))
       args->Return(paths);
-  }
-}
-
-void ShowSaveDialog(const file_dialog::DialogSettings& settings,
-                    mate::Arguments* args) {
-  v8::Local<v8::Value> peek = args->PeekNext();
-  file_dialog::SaveDialogCallback callback;
-  if (mate::Converter<file_dialog::SaveDialogCallback>::FromV8(args->isolate(),
-                                                               peek,
-                                                               &callback)) {
-    file_dialog::ShowSaveDialog(settings, callback);
-  } else {
-    base::FilePath path;
-    if (file_dialog::ShowSaveDialog(settings, &path))
-      args->Return(path);
   }
 }
 
@@ -119,8 +115,7 @@ void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> unused,
   mate::Dictionary dict(context->GetIsolate(), exports);
   dict.SetMethod("showMessageBox", &ShowMessageBox);
   dict.SetMethod("showErrorBox", &atom::ShowErrorBox);
-  dict.SetMethod("showOpenDialog", &ShowOpenDialog);
-  dict.SetMethod("showSaveDialog", &ShowSaveDialog);
+  dict.SetMethod("showDialog", &ShowDialog);
 }
 
 }  // namespace

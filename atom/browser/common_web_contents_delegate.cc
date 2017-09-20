@@ -16,6 +16,7 @@
 #include "atom/browser/web_contents_permission_helper.h"
 #include "atom/common/atom_constants.h"
 #include "base/files/file_util.h"
+#include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "brave/browser/brave_javascript_dialog_manager.h"
 #include "chrome/browser/certificate_viewer.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -333,13 +335,23 @@ void CommonWebContentsDelegate::DevToolsSaveToFile(
     file_dialog::DialogSettings settings;
     settings.parent_window = owner_window();
     settings.title = url;
-    settings.default_path = base::FilePath::FromUTF8Unsafe(url);
-    if (!file_dialog::ShowSaveDialog(settings, &path)) {
+    PathService::Get(chrome::DIR_DEFAULT_DOWNLOADS, &settings.default_path);
+    settings.default_path =
+      settings.default_path.Append(base::FilePath::FromUTF8Unsafe(url));
+    settings.type = ui::SelectFileDialog::SELECT_SAVEAS_FILE;
+    std::vector<base::FilePath::StringType> extensions;
+    extensions.push_back(
+      base::FilePath::StringType(FILE_PATH_LITERAL("json")));
+    settings.extensions.push_back(extensions);
+    std::vector<base::FilePath> paths;
+    if (!file_dialog::FileDialog::Show(settings, &paths)) {
       base::Value url_value(url);
       web_contents_->CallClientFunction(
           "DevToolsAPI.canceledSaveURL", &url_value, nullptr, nullptr);
       return;
     }
+    DCHECK(!paths.empty());
+    path = paths[0];
   }
 
   saved_files_[url] = path;
@@ -399,10 +411,11 @@ void CommonWebContentsDelegate::DevToolsAddFileSystem(
     std::vector<base::FilePath> paths;
     file_dialog::DialogSettings settings;
     settings.parent_window = owner_window();
-    settings.properties = file_dialog::FILE_DIALOG_OPEN_DIRECTORY;
-    if (!file_dialog::ShowOpenDialog(settings, &paths))
+    settings.type = ui::SelectFileDialog::SELECT_FOLDER;
+    if (!file_dialog::FileDialog::Show(settings, &paths))
       return;
 
+    DCHECK(!paths.empty());
     path = paths[0];
   }
 
