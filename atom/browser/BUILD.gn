@@ -26,17 +26,23 @@ source_set("browser") {
     # @todo(bridiver) fix circular dep
     # "//electron/muon/browser",
     "//base",
+    "//chrome/browser:resource_prefetch_predictor_proto",
     "//chrome/common:constants",
     "//storage/browser",
     "//storage/common",
     "//components/prefs",
     "//components/metrics",
+    "//components/safe_browsing/common:safe_browsing_prefs",
     ":importer",
     "//electron/vendor/ad-block/muon:ad_block",
     "//electron/vendor/tracking-protection/muon:tp_node_addon",
   ]
 
   sources = [
+    "//chrome/browser/loader/safe_browsing_resource_throttle.h",
+    "//chrome/browser/loader/safe_browsing_resource_throttle.cc",
+    "//chrome/browser/safe_browsing/url_checker_delegate_impl.cc",
+    "//chrome/browser/safe_browsing/url_checker_delegate_impl.h",
     "api/atom_api_app.cc",
     "api/atom_api_app.h",
     "api/atom_api_autofill.cc",
